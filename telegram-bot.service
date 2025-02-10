@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/gervais_bot
-Environment=PYTHONPATH=/home/ubuntu/gervais_bot
-ExecStart=/home/ubuntu/gervais_bot/venv/bin/python application.py
+WorkingDirectory=/home/ubuntu/gervais_bot_telegram
+Environment=PYTHONPATH=/home/ubuntu/gervais_bot_telegram
+ExecStart=/home/ubuntu/gervais_bot/venv/bin/python /home/ubuntu/gervais_bot_telegram/application.py
 Restart=always
 RestartSec=10
 

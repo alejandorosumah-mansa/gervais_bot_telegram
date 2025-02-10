@@ -5,13 +5,13 @@ sudo apt-get update
 sudo apt-get upgrade -y
 
 # Install Python and dependencies
-sudo apt-get install -y python3.9 python3.9-venv python3-pip ffmpeg
+sudo apt-get install -y python3 python3-venv python3-pip ffmpeg
 
 # Create directory for the bot
 mkdir -p /home/ubuntu/gervais_bot
 
 # Create virtual environment
-python3.9 -m venv /home/ubuntu/gervais_bot/venv
+python3 -m venv /home/ubuntu/gervais_bot/venv
 
 # Install requirements
 source /home/ubuntu/gervais_bot/venv/bin/activate
