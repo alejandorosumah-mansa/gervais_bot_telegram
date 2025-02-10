@@ -3,8 +3,6 @@ import datetime
 import logging
 import os
 
-import tiktoken
-
 import openai
 
 import json
@@ -783,46 +781,48 @@ class OpenAIHelper:
             f"Max tokens for model {self.config['model']} is not implemented yet."
         )
 
-    # https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
     def __count_tokens(self, messages) -> int:
         """
         Counts the number of tokens required to send the given messages.
-        :param messages: the messages to send
+        This is a rough estimation since we can't use tiktoken.
+        :param messages: the messages to send 
         :return: the number of tokens required
         """
         model = self.config["model"]
-        try:
-            encoding = tiktoken.encoding_for_model(model)
-        except KeyError:
-            encoding = tiktoken.get_encoding("o200k_base")
-
-        if model in GPT_ALL_MODELS:
-            tokens_per_message = 3
-            tokens_per_name = 1
-        else:
+        
+        if model not in GPT_ALL_MODELS:
             raise NotImplementedError(
                 f"""num_tokens_from_messages() is not implemented for model {model}."""
             )
+
+        # Rough estimation: 1 token ≈ 4 characters for English text
+        CHARS_PER_TOKEN = 4
+        tokens_per_message = 3
+        tokens_per_name = 1
+        
         num_tokens = 0
         for message in messages:
             num_tokens += tokens_per_message
             for key, value in message.items():
                 if key == "content":
                     if isinstance(value, str):
-                        num_tokens += len(encoding.encode(value))
+                        num_tokens += len(value) // CHARS_PER_TOKEN
                     else:
                         for message1 in value:
                             if message1["type"] == "image_url":
                                 image = decode_image(message1["image_url"]["url"])
                                 num_tokens += self.__count_tokens_vision(image)
                             else:
-                                num_tokens += len(encoding.encode(message1["text"]))
+                                num_tokens += len(message1["text"]) // CHARS_PER_TOKEN
                 else:
-                    num_tokens += len(encoding.encode(value))
+                    num_tokens += len(str(value)) // CHARS_PER_TOKEN
                     if key == "name":
                         num_tokens += tokens_per_name
+
         num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
-        return num_tokens
+        
+        # Add 10% buffer since this is an estimation
+        return int(num_tokens * 1.1)
 
     # no longer needed
 

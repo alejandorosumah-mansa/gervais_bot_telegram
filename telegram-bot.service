@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/gervais_bot
+Environment=PYTHONPATH=/home/ubuntu/gervais_bot
+ExecStart=/home/ubuntu/gervais_bot/venv/bin/python application.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 
