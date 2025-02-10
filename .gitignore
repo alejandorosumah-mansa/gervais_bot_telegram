@@ -57,3 +57,5 @@ bot/plugins/custom/
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
 .ebextensions/* 
+
+agronomix-key-2.pem
