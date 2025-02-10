@@ -1,23 +1,18 @@
 #!/bin/bash
+set -euo pipefail
 
-# Stop the service
-sudo systemctl stop telegram-bot
+# Change to the bot directory (adjust path if needed)
+cd /home/ubuntu/gervais_bot_telegram
 
-# Backup the .env file
-cp .env .env.backup
+# Pull latest code
+git pull origin ec2-deployment
 
-# Pull latest changes
-git pull origin main
-
-# Restore the .env file
-cp .env.backup .env
-
-# Install any new requirements
-source /home/ubuntu/gervais_bot/venv/bin/activate
+# Reinstall any new packages
+source /home/ubuntu/gervais_bot_telegram/env/bin/activate
 pip install -r requirements.txt
 
-# Start the service
-sudo systemctl start telegram-bot
+# Restart the service
+sudo systemctl restart telegram-bot
 
-# Check the status
-sudo systemctl status telegram-bot 
+# Show status
+sudo systemctl status telegram-bot
