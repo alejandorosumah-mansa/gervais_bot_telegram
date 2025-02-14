@@ -14,6 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_t
 
 from utils import is_direct_result, encode_image, decode_image
 from plugin_manager import PluginManager
+from s3_helper import S3Helper
 
 # Models can be found here: https://platform.openai.com/docs/models/overview
 # Models gpt-3.5-turbo-0613 and  gpt-3.5-turbo-16k-0613 will be deprecated on June 13, 2024
@@ -140,6 +141,7 @@ class OpenAIHelper:
         )
         self.config = config
         self.plugin_manager = plugin_manager
+        self.s3_helper = S3Helper(os.getenv('S3_BUCKET_NAME'))
         self.conversations: dict[int:list] = {}  # {chat_id: history}
         self.conversations_vision: dict[int:bool] = {}  # {chat_id: is_vision}
         self.last_updated: dict[int:datetime] = {}  # {chat_id: last_update_timestamp}
@@ -589,6 +591,21 @@ class OpenAIHelper:
         """
         Interprets a given PNG image file using the Vision model.
         """
+        logging.info(f"Processing image upload for chat_id: {chat_id}")
+        # Save image to S3 first
+        try:
+            logging.info(f"Processing image upload for chat_id: {chat_id}")
+            image_data = fileobj.read()
+            fileobj.seek(0)  # Reset file pointer for subsequent reads
+            logging.debug(f"Read image data, size: {len(image_data)} bytes")
+            # Get original filename if available
+            original_filename = getattr(fileobj, 'name', None)
+            self.s3_helper.upload_image(image_data, chat_id, original_filename)
+            logging.info("S3 upload completed successfully")
+        except Exception as e:
+            logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
+            # Continue with normal processing even if S3 upload fails
+        
         image = encode_image(fileobj)
         prompt = self.config["vision_prompt"] if prompt is None else prompt
 
@@ -645,6 +662,20 @@ class OpenAIHelper:
         """
         Interprets a given PNG image file using the Vision model.
         """
+        # Save image to S3 first
+        try:
+            logging.info(f"Processing image upload for chat_id: {chat_id}")
+            image_data = fileobj.read()
+            fileobj.seek(0)  # Reset file pointer for subsequent reads
+            logging.debug(f"Read image data, size: {len(image_data)} bytes")
+            # Get original filename if available
+            original_filename = getattr(fileobj, 'name', None)
+            self.s3_helper.upload_image(image_data, chat_id, original_filename)
+            logging.info("S3 upload completed successfully")
+        except Exception as e:
+            logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
+            # Continue with normal processing even if S3 upload fails
+        
         image = encode_image(fileobj)
         prompt = self.config["vision_prompt"] if prompt is None else prompt
 
@@ -656,9 +687,7 @@ class OpenAIHelper:
             },
         ]
 
-        response = await self.__common_get_chat_response_vision(
-            chat_id, content, stream=True
-        )
+        response = await self.__common_get_chat_response_vision(chat_id, content, stream=True)
 
         # if self.config['enable_functions']:
         #     response, plugins_used = await self.__handle_function_call(chat_id, response, stream=True)
