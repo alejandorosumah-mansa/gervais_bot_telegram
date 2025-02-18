@@ -592,19 +592,19 @@ class OpenAIHelper:
         Interprets a given PNG image file using the Vision model.
         """
         logging.info(f"Processing image upload for chat_id: {chat_id}")
-        # Save image to S3 first
-        try:
-            logging.info(f"Processing image upload for chat_id: {chat_id}")
-            image_data = fileobj.read()
-            fileobj.seek(0)  # Reset file pointer for subsequent reads
-            logging.debug(f"Read image data, size: {len(image_data)} bytes")
-            # Get original filename if available
-            original_filename = getattr(fileobj, 'name', None)
-            self.s3_helper.upload_image(image_data, chat_id, original_filename)
-            logging.info("S3 upload completed successfully")
-        except Exception as e:
-            logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
-            # Continue with normal processing even if S3 upload fails
+        # # Save image to S3 first
+        # try:
+        #     logging.info(f"Processing image upload for chat_id: {chat_id}")
+        #     image_data = fileobj.read()
+        #     fileobj.seek(0)  # Reset file pointer for subsequent reads
+        #     logging.debug(f"Read image data, size: {len(image_data)} bytes")
+        #     # Get original filename if available
+        #     original_filename = getattr(fileobj, 'name', None)
+        #     self.s3_helper.upload_image(image_data, chat_id, original_filename)
+        #     logging.info("S3 upload completed successfully")
+        # except Exception as e:
+        #     logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
+        #     # Continue with normal processing even if S3 upload fails
         
         image = encode_image(fileobj)
         prompt = self.config["vision_prompt"] if prompt is None else prompt
@@ -662,19 +662,19 @@ class OpenAIHelper:
         """
         Interprets a given PNG image file using the Vision model.
         """
-        # Save image to S3 first
-        try:
-            logging.info(f"Processing image upload for chat_id: {chat_id}")
-            image_data = fileobj.read()
-            fileobj.seek(0)  # Reset file pointer for subsequent reads
-            logging.debug(f"Read image data, size: {len(image_data)} bytes")
-            # Get original filename if available
-            original_filename = getattr(fileobj, 'name', None)
-            self.s3_helper.upload_image(image_data, chat_id, original_filename)
-            logging.info("S3 upload completed successfully")
-        except Exception as e:
-            logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
-            # Continue with normal processing even if S3 upload fails
+        # # Save image to S3 first
+        # try:
+        #     logging.info(f"Processing image upload for chat_id: {chat_id}")
+        #     image_data = fileobj.read()
+        #     fileobj.seek(0)  # Reset file pointer for subsequent reads
+        #     logging.debug(f"Read image data, size: {len(image_data)} bytes")
+        #     # Get original filename if available
+        #     original_filename = getattr(fileobj, 'name', None)
+        #     self.s3_helper.upload_image(image_data, chat_id, original_filename)
+        #     logging.info("S3 upload completed successfully")
+        # except Exception as e:
+        #     logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
+        #     # Continue with normal processing even if S3 upload fails
         
         image = encode_image(fileobj)
         prompt = self.config["vision_prompt"] if prompt is None else prompt

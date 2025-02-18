@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import io
+import datetime
 
 from uuid import uuid4
 from telegram import BotCommandScopeAllGroupChats, Update, constants
@@ -27,7 +28,9 @@ from telegram.ext import (
 )
 
 from pydub import AudioSegment
-from PIL import Image
+from PIL import Image, ExifTags
+import piexif
+from io import BytesIO
 
 from utils import (
     is_group_chat,
@@ -50,6 +53,7 @@ from utils import (
 )
 from openai_helper import OpenAIHelper, localized_text
 from usage_tracker import UsageTracker
+from s3_helper import S3Helper
 
 
 class ChatGPTTelegramBot:
@@ -65,6 +69,8 @@ class ChatGPTTelegramBot:
         """
         self.config = config
         self.openai = openai
+        # Initialize S3 helper
+        self.s3_helper = S3Helper(os.getenv('S3_BUCKET_NAME'))
         bot_language = self.config["bot_language"]
         self.commands = [
             BotCommand(
@@ -616,8 +622,273 @@ class ChatGPTTelegramBot:
         async def _execute():
             bot_language = self.config["bot_language"]
             try:
+                # Get the file from Telegram
                 media_file = await context.bot.get_file(image.file_id)
-                temp_file = io.BytesIO(await media_file.download_as_bytearray())
+                image_bytes = await media_file.download_as_bytearray()
+                
+                # Extract metadata
+                metadata = {
+                    'file_id': image.file_id,
+                    'file_unique_id': image.file_unique_id,
+                    'width': image.width,
+                    'height': image.height,
+                    'file_size': image.file_size,
+                    'date': datetime.datetime.now().isoformat(),
+                    'user_id': update.message.from_user.id,
+                    'user_name': update.message.from_user.name
+                }
+
+                # Get location from message if available
+                if update.message.location:
+                    metadata.update({
+                        'message_latitude': update.message.location.latitude,
+                        'message_longitude': update.message.location.longitude
+                    })
+                
+                # Try to extract EXIF data including GPS
+                try:
+                    image_io = BytesIO(image_bytes)
+                    img = Image.open(image_io)
+                    
+                    if hasattr(img, '_getexif'):
+                        exif = img._getexif()
+                        if exif is not None:
+                            labeled_exif = {}
+                            for key, val in exif.items():
+                                if key in ExifTags.TAGS:
+                                    labeled_exif[ExifTags.TAGS[key]] = str(val)
+                            
+                            # Extract GPS data if available
+                            if 'GPSInfo' in labeled_exif:
+                                gps_info = {}
+                                for key, val in exif[34853].items():
+                                    if key in ExifTags.GPSTAGS:
+                                        gps_info[ExifTags.GPSTAGS[key]] = str(val)
+                                metadata['gps_exif'] = gps_info
+                            
+                            metadata['exif'] = labeled_exif
+                    
+                    # Try piexif as alternative method
+                    try:
+                        exif_dict = piexif.load(img.info.get('exif', b''))
+                        if '0th' in exif_dict:
+                            metadata['piexif_data'] = {
+                                ExifTags.TAGS.get(tag_id, str(tag_id)): str(value)
+                                for tag_id, value in exif_dict['0th'].items()
+                            }
+                        if 'GPS' in exif_dict:
+                            metadata['piexif_gps'] = {
+                                ExifTags.GPSTAGS.get(tag_id, str(tag_id)): str(value)
+                                for tag_id, value in exif_dict['GPS'].items()
+                            }
+                    except Exception as e:
+                        logging.debug(f"Piexif extraction failed: {str(e)}")
+                
+                except Exception as e:
+                    logging.debug(f"EXIF extraction failed: {str(e)}")
+                
+                # Add any available mime type
+                if hasattr(image, 'mime_type'):
+                    metadata['mime_type'] = image.mime_type
+                
+                # Upload to S3 with metadata
+                try:
+                    original_filename = None
+                    if hasattr(image, 'file_name'):
+                        original_filename = image.file_name
+                        metadata['original_filename'] = original_filename
+                    elif hasattr(image, 'file_id'):
+                        original_filename = f"{image.file_id}.jpeg"
+                    
+                    self.s3_helper.upload_image(
+                        image_bytes, 
+                        chat_id, 
+                        original_filename,
+                        metadata=metadata
+                    )
+                    logging.info(f"Successfully uploaded image with metadata to S3 for chat_id {chat_id}")
+                except Exception as e:
+                    logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
+                
+                # Continue with vision processing...
+                temp_file = io.BytesIO(image_bytes)
+
+                # Rest of existing vision processing code...
+                temp_file_png = io.BytesIO()
+                try:
+                    original_image = Image.open(temp_file)
+                    original_image.save(temp_file_png, format="PNG")
+                    logging.info(
+                        f"New vision request received from user {update.message.from_user.name} "
+                        f"(id: {update.message.from_user.id})"
+                    )
+                except Exception as e:
+                    logging.exception(e)
+                    await update.effective_message.reply_text(
+                        message_thread_id=get_thread_id(update),
+                        reply_to_message_id=get_reply_to_message_id(self.config, update),
+                        text=localized_text("media_type_fail", bot_language),
+                    )
+                    return
+
+                # Continue with existing vision processing code...
+                user_id = update.message.from_user.id
+                if user_id not in self.usage:
+                    self.usage[user_id] = UsageTracker(user_id, update.message.from_user.name)
+
+                if self.config["stream"]:
+                    stream_response = self.openai.interpret_image_stream(
+                        chat_id=chat_id, fileobj=temp_file_png, prompt=prompt
+                    )
+                    i = 0
+                    prev = ""
+                    sent_message = None
+                    backoff = 0
+                    stream_chunk = 0
+                    accumulated_response = ""
+
+                    async for content, tokens in stream_response:
+                        if is_direct_result(content):
+                            return await handle_direct_result(self.config, update, content)
+
+                        if len(content.strip()) == 0:
+                            continue
+
+                        accumulated_response = content
+                        stream_chunks = split_into_chunks(content)
+                        if len(stream_chunks) > 1:
+                            content = stream_chunks[-1]
+                            if stream_chunk != len(stream_chunks) - 1:
+                                stream_chunk += 1
+                                try:
+                                    await edit_message_with_retry(
+                                        context,
+                                        chat_id,
+                                        str(sent_message.message_id),
+                                        stream_chunks[-2],
+                                    )
+                                except:
+                                    pass
+                                try:
+                                    sent_message = (
+                                        await update.effective_message.reply_text(
+                                            message_thread_id=get_thread_id(update),
+                                            text=content if len(content) > 0 else "...",
+                                        )
+                                    )
+                                except:
+                                    pass
+                                continue
+
+                        cutoff = get_stream_cutoff_values(update, content)
+                        cutoff += backoff
+
+                        if i == 0:
+                            try:
+                                if sent_message is not None:
+                                    await context.bot.delete_message(
+                                        chat_id=sent_message.chat_id,
+                                        message_id=sent_message.message_id,
+                                    )
+                                sent_message = await update.effective_message.reply_text(
+                                    message_thread_id=get_thread_id(update),
+                                    reply_to_message_id=get_reply_to_message_id(
+                                        self.config, update
+                                    ),
+                                    text=content,
+                                )
+                            except:
+                                continue
+
+                        elif abs(len(content) - len(prev)) > cutoff or tokens != "not_finished":
+                            prev = content
+                            try:
+                                use_markdown = tokens != "not_finished"
+                                await edit_message_with_retry(
+                                    context,
+                                    chat_id,
+                                    str(sent_message.message_id),
+                                    text=content,
+                                    markdown=use_markdown,
+                                )
+
+                            except RetryAfter as e:
+                                backoff += 5
+                                await asyncio.sleep(e.retry_after)
+                                continue
+
+                            except TimedOut:
+                                backoff += 5
+                                await asyncio.sleep(0.5)
+                                continue
+
+                            except Exception:
+                                backoff += 5
+                                continue
+
+                            await asyncio.sleep(0.01)
+
+                        i += 1
+                        if tokens != "not_finished":
+                            total_tokens = int(tokens)
+                            # Generate and send audio once streaming is complete
+                            await self.send_audio_response(update, accumulated_response, user_id)
+
+                else:
+                    try:
+                        interpretation, total_tokens = await self.openai.interpret_image(
+                            chat_id, temp_file_png, prompt=prompt
+                        )
+
+                        # First generate and send the audio response
+                        await self.send_audio_response(update, interpretation, user_id)
+
+                        # Then send the text response
+                        try:
+                            await update.effective_message.reply_text(
+                                message_thread_id=get_thread_id(update),
+                                reply_to_message_id=get_reply_to_message_id(
+                                    self.config, update
+                                ),
+                                text=interpretation,
+                                parse_mode=constants.ParseMode.MARKDOWN,
+                            )
+                        except BadRequest:
+                            try:
+                                await update.effective_message.reply_text(
+                                    message_thread_id=get_thread_id(update),
+                                    reply_to_message_id=get_reply_to_message_id(
+                                        self.config, update
+                                    ),
+                                    text=interpretation,
+                                )
+                            except Exception as e:
+                                logging.exception(e)
+                                await update.effective_message.reply_text(
+                                    message_thread_id=get_thread_id(update),
+                                    reply_to_message_id=get_reply_to_message_id(
+                                        self.config, update
+                                    ),
+                                    text=f"{localized_text('vision_fail', bot_language)}: {str(e)}",
+                                    parse_mode=constants.ParseMode.MARKDOWN,
+                                )
+                    except Exception as e:
+                        logging.exception(e)
+                        await update.effective_message.reply_text(
+                            message_thread_id=get_thread_id(update),
+                            reply_to_message_id=get_reply_to_message_id(
+                                self.config, update
+                            ),
+                            text=f"{localized_text('vision_fail', bot_language)}: {str(e)}",
+                            parse_mode=constants.ParseMode.MARKDOWN,
+                        )
+                vision_token_price = self.config["vision_token_price"]
+                self.usage[user_id].add_vision_tokens(total_tokens, vision_token_price)
+
+                allowed_user_ids = self.config["allowed_user_ids"].split(",")
+                if str(user_id) not in allowed_user_ids and "guests" in self.usage:
+                    self.usage["guests"].add_vision_tokens(total_tokens, vision_token_price)
+
             except Exception as e:
                 logging.exception(e)
                 await update.effective_message.reply_text(
@@ -629,191 +900,8 @@ class ChatGPTTelegramBot:
                     ),
                     parse_mode=constants.ParseMode.MARKDOWN,
                 )
-                return
 
-            # convert jpg from telegram to png as understood by openai
-
-            temp_file_png = io.BytesIO()
-
-            try:
-                original_image = Image.open(temp_file)
-
-                original_image.save(temp_file_png, format="PNG")
-                logging.info(
-                    f"New vision request received from user {update.message.from_user.name} "
-                    f"(id: {update.message.from_user.id})"
-                )
-
-            except Exception as e:
-                logging.exception(e)
-                await update.effective_message.reply_text(
-                    message_thread_id=get_thread_id(update),
-                    reply_to_message_id=get_reply_to_message_id(self.config, update),
-                    text=localized_text("media_type_fail", bot_language),
-                )
-
-            user_id = update.message.from_user.id
-            if user_id not in self.usage:
-                self.usage[user_id] = UsageTracker(
-                    user_id, update.message.from_user.name
-                )
-
-            if self.config["stream"]:
-                stream_response = self.openai.interpret_image_stream(
-                    chat_id=chat_id, fileobj=temp_file_png, prompt=prompt
-                )
-                i = 0
-                prev = ""
-                sent_message = None
-                backoff = 0
-                stream_chunk = 0
-                accumulated_response = ""
-
-                async for content, tokens in stream_response:
-                    if is_direct_result(content):
-                        return await handle_direct_result(self.config, update, content)
-
-                    if len(content.strip()) == 0:
-                        continue
-
-                    accumulated_response = content
-                    stream_chunks = split_into_chunks(content)
-                    if len(stream_chunks) > 1:
-                        content = stream_chunks[-1]
-                        if stream_chunk != len(stream_chunks) - 1:
-                            stream_chunk += 1
-                            try:
-                                await edit_message_with_retry(
-                                    context,
-                                    chat_id,
-                                    str(sent_message.message_id),
-                                    stream_chunks[-2],
-                                )
-                            except:
-                                pass
-                            try:
-                                sent_message = (
-                                    await update.effective_message.reply_text(
-                                        message_thread_id=get_thread_id(update),
-                                        text=content if len(content) > 0 else "...",
-                                    )
-                                )
-                            except:
-                                pass
-                            continue
-
-                    cutoff = get_stream_cutoff_values(update, content)
-                    cutoff += backoff
-
-                    if i == 0:
-                        try:
-                            if sent_message is not None:
-                                await context.bot.delete_message(
-                                    chat_id=sent_message.chat_id,
-                                    message_id=sent_message.message_id,
-                                )
-                            sent_message = await update.effective_message.reply_text(
-                                message_thread_id=get_thread_id(update),
-                                reply_to_message_id=get_reply_to_message_id(
-                                    self.config, update
-                                ),
-                                text=content,
-                            )
-                        except:
-                            continue
-
-                    elif abs(len(content) - len(prev)) > cutoff or tokens != "not_finished":
-                        prev = content
-                        try:
-                            use_markdown = tokens != "not_finished"
-                            await edit_message_with_retry(
-                                context,
-                                chat_id,
-                                str(sent_message.message_id),
-                                text=content,
-                                markdown=use_markdown,
-                            )
-
-                        except RetryAfter as e:
-                            backoff += 5
-                            await asyncio.sleep(e.retry_after)
-                            continue
-
-                        except TimedOut:
-                            backoff += 5
-                            await asyncio.sleep(0.5)
-                            continue
-
-                        except Exception:
-                            backoff += 5
-                            continue
-
-                        await asyncio.sleep(0.01)
-
-                    i += 1
-                    if tokens != "not_finished":
-                        total_tokens = int(tokens)
-                        # Generate and send audio once streaming is complete
-                        await self.send_audio_response(update, accumulated_response, user_id)
-
-            else:
-                try:
-                    interpretation, total_tokens = await self.openai.interpret_image(
-                        chat_id, temp_file_png, prompt=prompt
-                    )
-
-                    # First generate and send the audio response
-                    await self.send_audio_response(update, interpretation, user_id)
-
-                    # Then send the text response
-                    try:
-                        await update.effective_message.reply_text(
-                            message_thread_id=get_thread_id(update),
-                            reply_to_message_id=get_reply_to_message_id(
-                                self.config, update
-                            ),
-                            text=interpretation,
-                            parse_mode=constants.ParseMode.MARKDOWN,
-                        )
-                    except BadRequest:
-                        try:
-                            await update.effective_message.reply_text(
-                                message_thread_id=get_thread_id(update),
-                                reply_to_message_id=get_reply_to_message_id(
-                                    self.config, update
-                                ),
-                                text=interpretation,
-                            )
-                        except Exception as e:
-                            logging.exception(e)
-                            await update.effective_message.reply_text(
-                                message_thread_id=get_thread_id(update),
-                                reply_to_message_id=get_reply_to_message_id(
-                                    self.config, update
-                                ),
-                                text=f"{localized_text('vision_fail', bot_language)}: {str(e)}",
-                                parse_mode=constants.ParseMode.MARKDOWN,
-                            )
-                except Exception as e:
-                    logging.exception(e)
-                    await update.effective_message.reply_text(
-                        message_thread_id=get_thread_id(update),
-                        reply_to_message_id=get_reply_to_message_id(
-                            self.config, update
-                        ),
-                        text=f"{localized_text('vision_fail', bot_language)}: {str(e)}",
-                        parse_mode=constants.ParseMode.MARKDOWN,
-                    )
-            vision_token_price = self.config["vision_token_price"]
-            self.usage[user_id].add_vision_tokens(total_tokens, vision_token_price)
-
-            allowed_user_ids = self.config["allowed_user_ids"].split(",")
-            if str(user_id) not in allowed_user_ids and "guests" in self.usage:
-                self.usage["guests"].add_vision_tokens(total_tokens, vision_token_price)
-
-        await wrap_with_indicator(
-            update, context, _execute, constants.ChatAction.TYPING
-        )
+        await wrap_with_indicator(update, context, _execute, constants.ChatAction.TYPING)
 
     async def prompt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """

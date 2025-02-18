@@ -3,6 +3,7 @@ import boto3
 from datetime import datetime
 from botocore.exceptions import ClientError
 import logging
+import json
 
 class S3Helper:
     def __init__(self, bucket_name):
@@ -25,9 +26,14 @@ class S3Helper:
             logging.error(f"Failed to verify S3 bucket {self.bucket_name}: {str(e)}")
             raise
 
-    def upload_image(self, image_data, user_id, original_filename=None):
+    def upload_image(self, image_data, user_id, original_filename=None, metadata=None):
         """
         Upload an image to S3 in a folder named after the user_id
+        Args:
+            image_data: The image bytes
+            user_id: Telegram user ID
+            original_filename: Original filename if available
+            metadata: Dictionary containing image metadata (location, etc.)
         """
         try:
             # Generate filename with timestamp
@@ -38,18 +44,33 @@ class S3Helper:
                 extension = '.jpg'  # default extension
             
             filename = f"{timestamp}{extension}"
-            
-            # Create the S3 key with user_id as folder
             s3_key = f"{user_id}/{filename}"
             
-            logging.info(f"Attempting to upload image to S3 - Bucket: {self.bucket_name}, Key: {s3_key}")
+            # Create metadata object for S3
+            s3_metadata = {}
+            if metadata:
+                # Convert all metadata values to strings as required by S3
+                s3_metadata = {k: str(v) for k, v in metadata.items() if v is not None}
+                
+                # Save full metadata as JSON file
+                metadata_key = f"{user_id}/{timestamp}_metadata.json"
+                self.s3_client.put_object(
+                    Bucket=self.bucket_name,
+                    Key=metadata_key,
+                    Body=json.dumps(metadata, indent=2),
+                    ContentType='application/json'
+                )
             
-            # Upload the file
+            logging.info(f"Attempting to upload image to S3 - Bucket: {self.bucket_name}, Key: {s3_key}")
+            logging.info(f"Image metadata: {s3_metadata}")
+            
+            # Upload the image with metadata
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
                 Key=s3_key,
                 Body=image_data,
-                ContentType='image/jpeg'
+                ContentType='image/jpeg',
+                Metadata=s3_metadata
             )
             
             logging.info(f"Successfully uploaded image to S3: s3://{self.bucket_name}/{s3_key}")
