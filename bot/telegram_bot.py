@@ -5,9 +5,10 @@ import logging
 import os
 import io
 import datetime
+import json
 
 from uuid import uuid4
-from telegram import BotCommandScopeAllGroupChats, Update, constants
+from telegram import BotCommandScopeAllGroupChats, Update, constants, Location, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
@@ -710,6 +711,15 @@ class ChatGPTTelegramBot:
                 except Exception as e:
                     logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
                 
+                # Request location from user
+                await update.effective_message.reply_text(
+                    message_thread_id=get_thread_id(update),
+                    text=localized_text("request_location", self.config["bot_language"]),
+                    reply_markup=ReplyKeyboardMarkup([
+                        [KeyboardButton(localized_text("share_location", self.config["bot_language"]), request_location=True)]
+                    ], one_time_keyboard=True)
+                )
+
                 # Continue with vision processing...
                 temp_file = io.BytesIO(image_bytes)
 
@@ -1400,6 +1410,9 @@ class ChatGPTTelegramBot:
         )
         application.add_handler(CallbackQueryHandler(self.handle_callback_inline_query))
 
+        # Add new location handler
+        application.add_handler(MessageHandler(filters.LOCATION, self.handle_location))
+
         application.add_error_handler(error_handler)
 
         application.run_polling()
@@ -1431,3 +1444,76 @@ class ChatGPTTelegramBot:
             voice=speech_file,
         )
         speech_file.close()
+
+    async def handle_location(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handles location messages sent by users
+        """
+        if not await is_allowed(self.config, update, context):
+            logging.warning(
+                f"User {update.message.from_user.name} (id: {update.message.from_user.id}) "
+                "is not allowed to send location"
+            )
+            await self.send_disallowed_message(update, context)
+            return
+
+        try:
+            user = update.message.from_user
+            location = update.message.location
+            chat_id = update.effective_chat.id
+            
+            logging.info(
+                f"Received location from {user.name} (id: {user.id}): "
+                f"lat={location.latitude}, lon={location.longitude}"
+            )
+
+            # Prepare location data
+            location_data = {
+                "user_id": user.id,
+                "user_name": user.name,
+                "chat_id": chat_id,
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "live_period": getattr(location, "live_period", None),
+                "horizontal_accuracy": getattr(location, "horizontal_accuracy", None),
+                "heading": getattr(location, "heading", None),
+                "proximity_alert_radius": getattr(location, "proximity_alert_radius", None),
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+
+            # Generate filename with timestamp
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            s3_key = f"{user.id}/locations/{timestamp}.json"
+
+            # Upload to S3
+            self.s3_helper.s3_client.put_object(
+                Bucket=self.s3_helper.bucket_name,
+                Key=s3_key,
+                Body=json.dumps(location_data, indent=2),
+                ContentType='application/json'
+            )
+
+            bot_language = self.config["bot_language"]
+            await update.message.reply_text(
+                message_thread_id=get_thread_id(update),
+                text=localized_text("location_received", bot_language),
+                reply_markup=ReplyKeyboardRemove()
+            )
+
+            # If this is a live location, store it for updates
+            if location.live_period:
+                if not hasattr(self, 'live_locations'):
+                    self.live_locations = {}
+                self.live_locations[chat_id] = {
+                    "message_id": update.message.message_id,
+                    "expires_at": datetime.datetime.now().timestamp() + location.live_period,
+                    "s3_key": s3_key
+                }
+
+        except Exception as e:
+            logging.error(f"Error handling location: {str(e)}")
+            await update.message.reply_text(
+                message_thread_id=get_thread_id(update),
+                text=f"⚠️ Error saving location: {str(e)}",
+                reply_markup=ReplyKeyboardRemove()
+            )

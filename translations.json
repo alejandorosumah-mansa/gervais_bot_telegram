@@ -50,7 +50,11 @@
         "answer_with_chatgpt":"Answer with ChatGPT",
         "ask_chatgpt":"Ask ChatGPT",
         "loading":"Loading...",
-        "function_unavailable_in_inline_mode": "This function is unavailable in inline mode"
+        "function_unavailable_in_inline_mode": "This function is unavailable in inline mode",
+        "location_received": "📍 Location received and saved. Thank you!",
+        "request_location": "Please share your location so I can provide more relevant information.",
+        "share_location": "📍 Share Location",
+        "skip": "Skip"
     },
     "ar": {
         "help_description":"عرض رسالة المساعدة",
@@ -99,7 +103,10 @@
         "answer_with_chatgpt":"الإجابة بواسطة ChatGPT",
         "ask_chatgpt":"سؤال ChatGPT",
         "loading":"قيد التحميل...",
-        "function_unavailable_in_inline_mode": "هذه الوظيفة غير متوفرة في الوضع المضمن"
+        "function_unavailable_in_inline_mode": "هذه الوظيفة غير متوفرة في الوضع المضمن",
+        "request_location": "لتوفير تشخيص أفضل، يرجى مشاركة موقعك. سيساعدني على فهم ظروف المناخ في منطقتك.",
+        "share_location": "📍 مشاركة الموقع",
+        "skip": "Skip"
     },
     "de": {
         "help_description":"Zeige die Hilfenachricht",
@@ -148,7 +155,10 @@
         "answer_with_chatgpt":"Antworte mit ChatGPT",
         "ask_chatgpt":"Frage ChatGPT",
         "loading":"Lade...",
-        "function_unavailable_in_inline_mode": "Diese Funktion ist im Inline-Modus nicht verfügbar"
+        "function_unavailable_in_inline_mode": "Diese Funktion ist im Inline-Modus nicht verfügbar",
+        "request_location": "Um genauere Diagnosen zu erstellen, bitte teile deine Lage mit. Das wird mir helfen, die Klimakonditionen in deiner Region zu verstehen.",
+        "share_location": "📍 Standort teilen",
+        "skip": "Skip"
     },
     "es": {
         "help_description":"Muestra el mensaje de ayuda",
@@ -197,7 +207,10 @@
         "answer_with_chatgpt":"Responder con ChatGPT",
         "ask_chatgpt":"Preguntar a ChatGPT",
         "loading":"Cargando...",
-        "function_unavailable_in_inline_mode": "Esta función no está disponible en el modo inline"
+        "function_unavailable_in_inline_mode": "Esta función no está disponible en el modo inline",
+        "request_location": "Para proporcionar un diagnóstico mejor, por favor comparta su ubicación. Esto me ayudará a entender las condiciones climáticas de su región.",
+        "share_location": "📍 Compartir ubicación",
+        "skip": "Skip"
     },
     "fa": {
         "help_description":"نمایش پیغام راهنما",
@@ -246,7 +259,10 @@
         "answer_with_chatgpt":"با ChatGPT پاسخ دهید",
         "ask_chatgpt":"از ChatGPT بپرسید",
         "loading":"در حال بارگذاری...",
-        "function_unavailable_in_inline_mode": "این عملکرد در حالت آنلاین در دسترس نیست"
+        "function_unavailable_in_inline_mode": "این عملکرد در حالت آنلاین در دسترس نیست",
+        "request_location": "برای تشخیص بهتر، لطفا موقعیت خود را به اشتراک بگذارید. این به من کمک می کند تا شرایط آب و هوایی منطقه شما را درک کنم.",
+        "share_location": "📍 اشتراک جغرافیایی",
+        "skip": "Skip"
     },
     "fi": {
         "help_description":"Näytä ohjeet",
@@ -295,7 +311,10 @@
         "answer_with_chatgpt":"Vastaa ChatGPT:n avulla",
         "ask_chatgpt":"Kysy ChatGPT:ltä",
         "loading":"Lataa...",
-        "function_unavailable_in_inline_mode": "Tämä toiminto ei ole käytettävissä sisäisessä tilassa"
+        "function_unavailable_in_inline_mode": "Tämä toiminto ei ole käytettävissä sisäisessä tilassa",
+        "request_location": "Anna korkean tason ohjeita, jotta voimme auttaa sinua paremmin. (esim. /reset Olet avulias avustaja)",
+        "share_location": "📍 Jaa sijainti",
+        "skip": "Skip"
     },
     "he": {
         "help_description": "הצג הודעת עזרה",
@@ -344,7 +363,10 @@
         "answer_with_chatgpt": "ענה באמצעות ChatGPT",
         "ask_chatgpt": "שאל את ChatGPT",
         "loading": "טוען...",
-        "function_unavailable_in_inline_mode": "הפונקציה לא זמינה במצב inline"
+        "function_unavailable_in_inline_mode": "הפונקציה לא זמינה במצב inline",
+        "request_location": "כדי להסיק מטיפוס טוב יותר, אנא שתפרסם את מיקומך. זה יעזור לי להבין את תנאי האקלים באזור שלך.",
+        "share_location": "📍 שתפרסם את מיקומך",
+        "skip": "Skip"
     },
     "id": {
         "help_description": "Menampilkan pesan bantuan",
@@ -393,7 +415,10 @@
         "answer_with_chatgpt": "Jawaban dengan ChatGPT",
         "ask_chatgpt": "Tanya ChatGPT",
         "loading": "Sedang memuat...",
-        "function_unavailable_in_inline_mode": "Fungsi ini tidak tersedia dalam mode inline"
+        "function_unavailable_in_inline_mode": "Fungsi ini tidak tersedia dalam mode inline",
+        "request_location": "Untuk memberikan diagnosa yang lebih baik, silakan bagikan lokasi Anda. Ini akan membantu saya memahami kondisi cuaca di daerah Anda.",
+        "share_location": "📍 Bagikan Lokasi",
+        "skip": "Skip"
     },
     "it": {
         "help_description":"Mostra il messaggio di aiuto",
@@ -442,7 +467,10 @@
         "answer_with_chatgpt":"Rispondi con ChatGPT",
         "ask_chatgpt":"Chiedi a ChatGPT",
         "loading":"Carico...",
-        "function_unavailable_in_inline_mode": "Questa funzione non è disponibile in modalità inline"
+        "function_unavailable_in_inline_mode": "Questa funzione non è disponibile in modalità inline",
+        "request_location": "Per fornire un miglior diagramma, per favore condividi la tua posizione. Ci aiuterà a capire le condizioni meteorologiche della tua regione.",
+        "share_location": "📍 Condividi la posizione",
+        "skip": "Skip"
     },
     "ms": {
         "help_description":"Lihat Mesej Bantuan",
@@ -491,7 +519,10 @@
         "answer_with_chatgpt":"Jawab dengan ChatGPT",
         "ask_chatgpt":"Tanya ChatGPT",
         "loading":"Memuatkan...",
-        "function_unavailable_in_inline_mode": "Fungsi ini tidak tersedia dalam mod sebaris"
+        "function_unavailable_in_inline_mode": "Fungsi ini tidak tersedia dalam mod sebaris",
+        "request_location": "Untuk memberikan diagnosa yang lebih baik, silakan bagikan lokasi Anda. Ini akan membantu saya memahami kondisi cuaca di daerah Anda.",
+        "share_location": "📍 Bagikan Lokasi",
+        "skip": "Skip"
     },
     "nl": {
         "help_description":"Toon uitleg",
@@ -540,7 +571,10 @@
         "answer_with_chatgpt":"Antwoord met ChatGPT",
         "ask_chatgpt":"Vraag ChatGPT",
         "loading":"Laden...",
-        "function_unavailable_in_inline_mode": "Deze functie is niet beschikbaar in de inline modus"
+        "function_unavailable_in_inline_mode": "Deze functie is niet beschikbaar in de inline modus",
+        "request_location": "Om betere diagnosen te geven, gelieve je locatie te delen. Dit zal mij helpen om de klimaatcondities in je regio te begrijpen.",
+        "share_location": "📍 Deel locatie",
+        "skip": "Skip"
     },
     "pl": {
         "help_description": "Pokaż wiadomości pomocnicze",
@@ -589,7 +623,10 @@
         "answer_with_chatgpt": "Odpowiedz z ChatGPT",
         "ask_chatgpt": "Zapytaj ChatGPT",
         "loading": "Ładowanie...",
-        "function_unavailable_in_inline_mode": "Ta funkcja jest niedostępna w trybie inline"
+        "function_unavailable_in_inline_mode": "Ta funkcja jest niedostępna w trybie inline",
+        "request_location": "Aby podać lepszy diagnozę, proszę podziel się swoją lokalizacją. Pomoże mi to zrozumieć warunki klimatyczne w Twojej okolicy.",
+        "share_location": "📍 Podziel się lokalizacją",
+        "skip": "Skip"
     },
     "pt-br": {
         "help_description": "Mostra a mensagem de ajuda",
@@ -638,7 +675,10 @@
         "answer_with_chatgpt": "Responder com ChatGPT",
         "ask_chatgpt": "Perguntar ao ChatGPT",
         "loading": "Carregando...",
-        "function_unavailable_in_inline_mode": "Esta função não está disponível no modo inline"
+        "function_unavailable_in_inline_mode": "Esta função não está disponível no modo inline",
+        "request_location": "Para fornecer um diagnóstico melhor, por favor compartilhe sua localização. Isso me ajudará a entender as condições climáticas da sua região.",
+        "share_location": "📍 Compartilhar localização",
+        "skip": "Skip"
     },
     "ru": {
         "help_description":"Показать справочное сообщение",
@@ -687,7 +727,10 @@
         "answer_with_chatgpt":"Ответить с помощью ChatGPT",
         "ask_chatgpt":"Спросить ChatGPT",
         "loading":"Загрузка...",
-        "function_unavailable_in_inline_mode": "Эта функция недоступна в режиме inline"
+        "function_unavailable_in_inline_mode": "Эта функция недоступна в режиме inline",
+        "request_location": "Чтобы предоставить более точный диагноз, пожалуйста, поделитесь своим местоположением. Это поможет мне понять климатические условия в вашем регионе.",
+        "share_location": "📍 Поделиться местоположением",
+        "skip": "Skip"
     },
     "tr": {
         "help_description":"Yardım mesajını göster",
@@ -736,7 +779,10 @@
         "answer_with_chatgpt":"ChatGPT ile cevapla",
         "ask_chatgpt":"ChatGPT'ye sor",
         "loading":"Yükleniyor...",
-        "function_unavailable_in_inline_mode": "Bu işlev inline modda kullanılamaz"
+        "function_unavailable_in_inline_mode": "Bu işlev inline modda kullanılamaz",
+        "request_location": "Daha iyi bir tanılama için lütfen konumunuzu paylaşın. Bu, bölgenizdeki iklim koşullarını anlamama yardımcı olacaktır.",
+        "share_location": "📍 Konum paylaş",
+        "skip": "Skip"
     },
     "uk": {
         "help_description":"Показати повідомлення допомоги",
@@ -785,7 +831,10 @@
         "answer_with_chatgpt":"Відповідь за допомогою ChatGPT",
         "ask_chatgpt":"Запитати ChatGPT",
         "loading":"Завантаження...",
-        "function_unavailable_in_inline_mode": "Ця функція недоступна в режимі Inline"
+        "function_unavailable_in_inline_mode": "Ця функція недоступна в режимі Inline",
+        "request_location": "Щоб надати кращий діагноз, будь ласка, поділіться своїм місцем розташування. Це допоможе мені краще зрозуміти кліматичні умови в вашому регіоні.",
+        "share_location": "📍 Поділитися місцем розташування",
+        "skip": "Skip"
     },
     "uz": {
         "help_description": "Yordam xabarini ko'rsatish",
@@ -834,7 +883,10 @@
         "answer_with_chatgpt": "ChatGPT bilan javob berish",
         "ask_chatgpt": "ChatGPTdan so'rash",
         "loading": "Yuklanmoqda...",
-        "function_unavailable_in_inline_mode": "Bu funksiya inline rejimida mavjud emas"
+        "function_unavailable_in_inline_mode": "Bu funksiya inline rejimida mavjud emas",
+        "request_location": "Agar xohlasangiz, umumiy ko'rsatmalar bering (masalan, /reset siz foydali yordamchisiz)",
+        "share_location": "📍 Umumiy ko'rsatmalar",
+        "skip": "Skip"
     },
     "vi": {
         "help_description":"Hiển thị trợ giúp",
@@ -883,7 +935,10 @@
         "answer_with_chatgpt":"Trả lời với ChatGPT",
         "ask_chatgpt":"Hỏi ChatGPT",
         "loading":"Đang tải...",
-        "function_unavailable_in_inline_mode": "Chức năng này không khả dụng trong chế độ nội tuyến"
+        "function_unavailable_in_inline_mode": "Chức năng này không khả dụng trong chế độ nội tuyến",
+        "request_location": "Để cung cấp chẩn đoán tốt hơn, vui lòng chia sẻ vị trí của bạn. Điều này sẽ giúp tôi hiểu được điều kiện khí hậu trong khu vực của bạn.",
+        "share_location": "📍 Chia sẻ vị trí",
+        "skip": "Skip"
     },
     "zh-cn": {
         "help_description":"显示帮助信息",
@@ -932,7 +987,10 @@
         "answer_with_chatgpt":"使用ChatGPT回答",
         "ask_chatgpt":"询问ChatGPT",
         "loading":"载入中...",
-        "function_unavailable_in_inline_mode": "此功能在内联模式下不可用"
+        "function_unavailable_in_inline_mode": "此功能在内联模式下不可用",
+        "request_location": "为了提供更好的诊断，请分享您的位置。这将帮助我了解您地区的气候条件。",
+        "share_location": "📍 分享位置",
+        "skip": "Skip"
     },
     "zh-tw": {
         "help_description":"顯示幫助訊息",
@@ -981,7 +1039,10 @@
         "answer_with_chatgpt":"使用 ChatGPT 回答",
         "ask_chatgpt":"詢問 ChatGPT",
         "loading":"載入中...",
-        "function_unavailable_in_inline_mode": "此功能在內嵌模式下不可用"
+        "function_unavailable_in_inline_mode": "此功能在內嵌模式下不可用",
+        "request_location": "為了提供更好的診斷，請分享您的位置。這將幫助我了解您地區的氣候條件。",
+        "share_location": "📍 分享位置",
+        "skip": "Skip"
     },
     "fr": {
         "help_description": "Afficher le message d'aide",
@@ -1034,6 +1095,10 @@
         "answer_with_chatgpt": "Répondre avec l'assistant",
         "ask_chatgpt": "Demander à l'assistant",
         "loading": "Chargement...",
-        "function_unavailable_in_inline_mode": "Cette fonction n'est pas disponible en mode en ligne"
+        "function_unavailable_in_inline_mode": "Cette fonction n'est pas disponible en mode en ligne",
+        "location_received": "📍 Position reçue et enregistrée. Merci !",
+        "request_location": "Pour un meilleur diagnostic, veuillez partager votre localisation. Cela m'aidera à comprendre les conditions climatiques de votre région.",
+        "share_location": "📍 Partager la localisation",
+        "skip": "Passer"
     }
 }
