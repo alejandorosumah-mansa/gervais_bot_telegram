@@ -79,3 +79,32 @@ class S3Helper:
         except ClientError as e:
             logging.error(f"Error uploading to S3 - Bucket: {self.bucket_name}, Error: {str(e)}")
             raise 
+
+    def save_chat_history(self, user_id, message_data):
+        """
+        Save a chat message and its response to S3
+        Args:
+            user_id: Telegram user ID
+            message_data: Dictionary containing message details
+        """
+        try:
+            # Generate timestamp-based key
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            s3_key = f"{user_id}/chat_history/{timestamp}.json"
+            
+            logging.info(f"Saving chat history to S3 - Bucket: {self.bucket_name}, Key: {s3_key}")
+            
+            # Upload the chat data
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=json.dumps(message_data, indent=2),
+                ContentType='application/json'
+            )
+            
+            logging.info(f"Successfully saved chat history to S3: s3://{self.bucket_name}/{s3_key}")
+            return f"s3://{self.bucket_name}/{s3_key}"
+            
+        except Exception as e:
+            logging.error(f"Error saving chat history to S3 - Bucket: {self.bucket_name}, Error: {str(e)}")
+            raise 

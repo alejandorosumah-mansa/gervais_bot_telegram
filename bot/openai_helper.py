@@ -145,6 +145,7 @@ class OpenAIHelper:
         self.conversations: dict[int:list] = {}  # {chat_id: history}
         self.conversations_vision: dict[int:bool] = {}  # {chat_id: is_vision}
         self.last_updated: dict[int:datetime] = {}  # {chat_id: last_update_timestamp}
+        self.message_timestamps = {}  # To store message timestamps
 
     def get_conversation_stats(self, chat_id: int) -> tuple[int, int]:
         """
@@ -158,63 +159,34 @@ class OpenAIHelper:
             self.conversations[chat_id]
         )
 
-    async def get_chat_response(self, chat_id: int, query: str) -> tuple[str, str]:
-        """
-        Gets a full response from the GPT model.
-        :param chat_id: The chat ID
-        :param query: The query to send to the model
-        :return: The answer from the model and the number of tokens used
-        """
-        plugins_used = ()
+    async def get_chat_response(self, chat_id: int, query: str):
+        """Get response from the model. Save timestamps for chat history."""
+        # Record query timestamp
+        self.message_timestamps[chat_id] = {
+            'query_time': datetime.datetime.now().isoformat(),
+            'query': query
+        }
+        
         response = await self.__common_get_chat_response(chat_id, query)
-        if self.config["enable_functions"] and not self.conversations_vision[chat_id]:
-            response, plugins_used = await self.__handle_function_call(
-                chat_id, response
-            )
-            if is_direct_result(response):
-                return response, "0"
-
-        answer = ""
-
-        if len(response.choices) > 1 and self.config["n_choices"] > 1:
-            for index, choice in enumerate(response.choices):
-                content = choice.message.content.strip()
-                if index == 0:
-                    self.__add_to_history(chat_id, role="assistant", content=content)
-                answer += f"{index + 1}\u20e3\n"
-                answer += content
-                answer += "\n\n"
-        else:
-            answer = response.choices[0].message.content.strip()
-            self.__add_to_history(chat_id, role="assistant", content=answer)
-
-        bot_language = self.config["bot_language"]
-        show_plugins_used = len(plugins_used) > 0 and self.config["show_plugins_used"]
-        plugin_names = tuple(
-            self.plugin_manager.get_plugin_source_name(plugin)
-            for plugin in plugins_used
-        )
-        if self.config["show_usage"]:
-            answer += (
-                "\n\n---\n"
-                f"💰 {str(response.usage.total_tokens)} {localized_text('stats_tokens', bot_language)}"
-                f" ({str(response.usage.prompt_tokens)} {localized_text('prompt', bot_language)},"
-                f" {str(response.usage.completion_tokens)} {localized_text('completion', bot_language)})"
-            )
-            if show_plugins_used:
-                answer += f"\n🔌 {', '.join(plugin_names)}"
-        elif show_plugins_used:
-            answer += f"\n\n---\n🔌 {', '.join(plugin_names)}"
-
-        return answer, response.usage.total_tokens
+        
+        # Record response timestamp
+        self.message_timestamps[chat_id].update({
+            'response_time': datetime.datetime.now().isoformat(),
+            'response': response.choices[0].message.content,
+            'total_tokens': response.usage.total_tokens
+        })
+        
+        # Return original response format
+        return response.choices[0].message.content, str(response.usage.total_tokens)
 
     async def get_chat_response_stream(self, chat_id: int, query: str):
-        """
-        Stream response from the GPT model.
-        :param chat_id: The chat ID
-        :param query: The query to send to the model
-        :return: The answer from the model and the number of tokens used, or 'not_finished'
-        """
+        """Stream response from the GPT model."""
+        # Record query timestamp
+        self.message_timestamps[chat_id] = {
+            'query_time': datetime.datetime.now().isoformat(),
+            'query': query
+        }
+        
         plugins_used = ()
         response = await self.__common_get_chat_response(chat_id, query, stream=True)
         if self.config["enable_functions"] and not self.conversations_vision[chat_id]:
@@ -233,9 +205,17 @@ class OpenAIHelper:
             if delta.content:
                 answer += delta.content
                 yield answer, "not_finished"
+        
         answer = answer.strip()
         self.__add_to_history(chat_id, role="assistant", content=answer)
         tokens_used = str(self.__count_tokens(self.conversations[chat_id]))
+
+        # Record response timestamp and content after streaming is complete
+        self.message_timestamps[chat_id].update({
+            'response_time': datetime.datetime.now().isoformat(),
+            'response': answer,
+            'total_tokens': tokens_used
+        })
 
         show_plugins_used = len(plugins_used) > 0 and self.config["show_plugins_used"]
         plugin_names = tuple(
@@ -912,3 +892,7 @@ class OpenAIHelper:
     #     billing_data = json.loads(response.text)
     #     usage_month = billing_data["total_usage"] / 100  # convert cent amount to dollars
     #     return usage_month
+
+    def get_last_message_data(self, chat_id: int):
+        """Get the last message data including timestamps"""
+        return self.message_timestamps.get(chat_id, {})

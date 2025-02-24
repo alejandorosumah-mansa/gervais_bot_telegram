@@ -540,6 +540,26 @@ class ChatGPTTelegramBot:
                     chat_id=chat_id, query=transcript
                 )
 
+                # Get message data with timestamps
+                message_data = self.openai.get_last_message_data(chat_id)
+                
+                # Add user info
+                message_data.update({
+                    'user_id': update.message.from_user.id,
+                    'username': update.message.from_user.username,
+                    'chat_id': chat_id
+                })
+                
+                # Save to S3
+                try:
+                    self.s3_helper.save_chat_history(
+                        user_id=update.message.from_user.id,
+                        message_data=message_data
+                    )
+                except Exception as e:
+                    logging.error(f"Failed to save chat history to S3: {str(e)}")
+                    # Don't raise the error to avoid interrupting chat flow
+                
                 # Generate speech from GPT's response
                 speech_file, text_length = await self.openai.generate_speech(
                     text=response
@@ -972,6 +992,24 @@ class ChatGPTTelegramBot:
                         if tokens != "not_finished":
                             total_tokens = int(tokens)
                             accumulated_response = content
+                            
+                            # Save chat history after streaming is complete
+                            message_data = self.openai.get_last_message_data(chat_id)
+                            message_data.update({
+                                'user_id': update.message.from_user.id,
+                                'username': update.message.from_user.username,
+                                'chat_id': chat_id,
+                                'streaming': True
+                            })
+                            
+                            try:
+                                self.s3_helper.save_chat_history(
+                                    user_id=update.message.from_user.id,
+                                    message_data=message_data
+                                )
+                            except Exception as e:
+                                logging.error(f"Failed to save chat history to S3: {str(e)}")
+                            
                             # Generate and send audio once streaming is complete
                             await self.send_audio_response(update, content, user_id)
                 else:
@@ -982,6 +1020,24 @@ class ChatGPTTelegramBot:
 
                     if is_direct_result(response):
                         return await handle_direct_result(self.config, update, response)
+
+                    # Get message data with timestamps
+                    message_data = self.openai.get_last_message_data(chat_id)
+                    message_data.update({
+                        'user_id': update.message.from_user.id,
+                        'username': update.message.from_user.username,
+                        'chat_id': chat_id,
+                        'streaming': False
+                    })
+                    
+                    # Save to S3
+                    try:
+                        self.s3_helper.save_chat_history(
+                            user_id=update.message.from_user.id,
+                            message_data=message_data
+                        )
+                    except Exception as e:
+                        logging.error(f"Failed to save chat history to S3: {str(e)}")
 
                     # Generate speech from the response
                     await self.send_audio_response(update, response, user_id)
