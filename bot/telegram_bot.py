@@ -91,15 +91,6 @@ class ChatGPTTelegramBot:
                 description=localized_text("resend_description", bot_language),
             ),
         ]
-        # If imaging is enabled, add the "image" command to the list
-        if self.config.get("enable_image_generation", False):
-            self.commands.append(
-                BotCommand(
-                    command="image",
-                    description=localized_text("image_description", bot_language),
-                )
-            )
-
         if self.config.get("enable_tts_generation", False):
             self.commands.append(
                 BotCommand(
@@ -120,6 +111,18 @@ class ChatGPTTelegramBot:
         self.last_message = {}
         self.inline_queries_cache = {}
 
+        # Add user profile tracking
+        self.user_profiles = {}  # In-memory cache of user profiles
+        self.profile_collection_state = {}  # Track the state of profile collection
+        
+        # Add profile command
+        self.commands.append(
+            BotCommand(
+                command="profile",
+                description="Update your profile information",
+            )
+        )
+
     async def help(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Shows the help menu.
@@ -139,6 +142,10 @@ class ChatGPTTelegramBot:
             + localized_text("help_text", bot_language)[2]
         )
         await update.message.reply_text(help_text, disable_web_page_preview=True)
+
+        # After sending help, check if user has a profile
+        user_id = update.message.from_user.id
+        await self.check_user_profile(update, user_id)
 
     async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
@@ -861,15 +868,40 @@ class ChatGPTTelegramBot:
                         i += 1
                         if tokens != "not_finished":
                             total_tokens = int(tokens)
-                            # Generate and send audio once streaming is complete
+                            
+                            # First generate and send audio once streaming is complete
                             await self.send_audio_response(update, accumulated_response, user_id)
+                            
+                            # THEN save chat history AFTER sending the response
+                            try:
+                                message_data = {
+                                    'user_id': update.message.from_user.id,
+                                    'username': update.message.from_user.username,
+                                    'chat_id': chat_id,
+                                    'query_time': datetime.datetime.now().isoformat(),
+                                    'query': prompt if prompt else self.config.get("vision_prompt", "What is in this image?"),
+                                    'response_time': datetime.datetime.now().isoformat(),
+                                    'response': accumulated_response,
+                                    'total_tokens': str(total_tokens),
+                                    'streaming': True,
+                                    'image_response': True
+                                }
+                                
+                                logging.debug(f"Saving streaming chat history to S3 after sending response to user {update.message.from_user.id}")
+                                result = self.s3_helper.save_chat_history(
+                                    user_id=update.message.from_user.id,
+                                    message_data=message_data
+                                )
+                                logging.info(f"Successfully saved streaming image conversation to S3: {result}")
+                            except Exception as e:
+                                logging.error(f"Failed to save streaming image conversation to S3: {str(e)}", exc_info=True)
 
                 else:
                     try:
                         interpretation, total_tokens = await self.openai.interpret_image(
                             chat_id, temp_file_png, prompt=prompt
                         )
-
+                        
                         # First generate and send the audio response
                         await self.send_audio_response(update, interpretation, user_id)
 
@@ -902,6 +934,30 @@ class ChatGPTTelegramBot:
                                     text=f"{localized_text('vision_fail', bot_language)}: {str(e)}",
                                     parse_mode=constants.ParseMode.MARKDOWN,
                                 )
+
+                        # NOW save the chat history AFTER sending responses
+                        try:
+                            message_data = {
+                                'user_id': update.message.from_user.id,
+                                'username': update.message.from_user.username,
+                                'chat_id': chat_id,
+                                'query_time': datetime.datetime.now().isoformat(),
+                                'query': prompt if prompt else self.config.get("vision_prompt", "What is in this image?"),
+                                'response_time': datetime.datetime.now().isoformat(),
+                                'response': interpretation,
+                                'total_tokens': str(total_tokens),
+                                'image_response': True
+                            }
+                            
+                            logging.debug(f"Saving chat history to S3 after sending response to user {update.message.from_user.id}")
+                            result = self.s3_helper.save_chat_history(
+                                user_id=update.message.from_user.id,
+                                message_data=message_data
+                            )
+                            logging.info(f"Successfully saved image conversation to S3: {result}")
+                        except Exception as e:
+                            logging.error(f"Failed to save image conversation to S3: {str(e)}", exc_info=True)
+
                     except Exception as e:
                         logging.exception(e)
                         await update.effective_message.reply_text(
@@ -943,11 +999,66 @@ class ChatGPTTelegramBot:
         if not await self.check_allowed_and_within_budget(update, context):
             return
 
+        user_id = update.message.from_user.id
+        chat_id = update.effective_chat.id
+        
+        # Check if we're in the middle of profile collection
+        if user_id in self.profile_collection_state:
+            state = self.profile_collection_state[user_id]
+            
+            if state == "waiting_for_name":
+                # Save the name
+                name = update.message.text
+                if not self.user_profiles.get(user_id):
+                    self.user_profiles[user_id] = {}
+                
+                self.user_profiles[user_id]['name'] = name
+                
+                # Now ask for cooperatives
+                await update.effective_message.reply_text(
+                    f"Merci {name}! Avec quelle(s) coopérative(s) travaillez-vous? "
+                    f"(Séparez les noms par des virgules si plusieurs)"
+                )
+                self.profile_collection_state[user_id] = "waiting_for_coops"
+                return
+                
+            elif state == "waiting_for_coops":
+                # Save the cooperatives
+                coops = [coop.strip() for coop in update.message.text.split(',')]
+                self.user_profiles[user_id]['cooperatives'] = coops
+                
+                # Save to S3
+                try:
+                    profile_data = self.user_profiles[user_id]
+                    profile_data['updated_at'] = datetime.datetime.now().isoformat()
+                    
+                    self.s3_helper.save_user_profile(user_id, profile_data)
+                    
+                    # Clear state
+                    del self.profile_collection_state[user_id]
+                    
+                    await update.effective_message.reply_text(
+                        f"Merci! Votre profil a été enregistré.\n\n"
+                        f"Nom: {profile_data['name']}\n"
+                        f"Coopérative(s): {', '.join(profile_data['cooperatives'])}\n\n"
+                        f"Vous pouvez maintenant me poser des questions sur les maladies du cacao ou "
+                        f"m'envoyer des photos pour diagnostic."
+                    )
+                    return
+                except Exception as e:
+                    logging.error(f"Error saving user profile: {str(e)}")
+                    # Clear state and continue as normal
+                    del self.profile_collection_state[user_id]
+                    await update.effective_message.reply_text(
+                        "Désolé, il y a eu un problème lors de l'enregistrement de votre profil. "
+                        "Vous pouvez réessayer plus tard avec la commande /profile."
+                    )
+        
+        # Normal message handling continues here
         logging.info(
             f"New message received from user {update.message.from_user.name} (id: {update.message.from_user.id})"
         )
-        chat_id = update.effective_chat.id
-        user_id = update.message.from_user.id
+        
         prompt = message_text(update.message)
         self.last_message[chat_id] = prompt
 
@@ -1425,11 +1536,12 @@ class ChatGPTTelegramBot:
 
         application.add_handler(CommandHandler("reset", self.reset))
         application.add_handler(CommandHandler("help", self.help))
+        application.add_handler(CommandHandler("start", self.help))
         application.add_handler(CommandHandler("image", self.image))
         application.add_handler(CommandHandler("tts", self.tts))
-        application.add_handler(CommandHandler("start", self.help))
         application.add_handler(CommandHandler("stats", self.stats))
         application.add_handler(CommandHandler("resend", self.resend))
+        application.add_handler(CommandHandler("profile", self.profile))
         application.add_handler(
             CommandHandler(
                 "chat",
@@ -1573,3 +1685,41 @@ class ChatGPTTelegramBot:
                 text=f"⚠️ Error saving location: {str(e)}",
                 reply_markup=ReplyKeyboardRemove()
             )
+
+    async def check_user_profile(self, update, user_id):
+        """Check if user has a profile and prompt for creation if not"""
+        try:
+            # Try to get profile from memory cache
+            profile = self.user_profiles.get(user_id)
+            
+            # If not in memory, try to get from S3
+            if not profile:
+                profile = self.s3_helper.get_user_profile(user_id)
+                if profile:
+                    # Cache it for future use
+                    self.user_profiles[user_id] = profile
+            
+            # If still no profile, start profile collection
+            if not profile:
+                bot_language = self.config["bot_language"]
+                await update.effective_message.reply_text(
+                    "Bienvenue sur Gervais, votre assistant en diagnostic du cacao! 🌱\n\n"
+                    "Pour mieux vous servir, pourriez-vous nous donner quelques informations?\n\n"
+                    "Comment vous appelez-vous?"
+                )
+                self.profile_collection_state[user_id] = "waiting_for_name"
+            
+            return profile
+        except Exception as e:
+            logging.error(f"Error checking user profile: {str(e)}")
+            return None
+
+    async def profile(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /profile command to update user profile"""
+        user_id = update.message.from_user.id
+        
+        await update.effective_message.reply_text(
+            "Mettons à jour votre profil.\n\n"
+            "Comment vous appelez-vous?"
+        )
+        self.profile_collection_state[user_id] = "waiting_for_name"

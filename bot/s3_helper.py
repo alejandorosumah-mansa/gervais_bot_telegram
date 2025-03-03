@@ -108,3 +108,57 @@ class S3Helper:
         except Exception as e:
             logging.error(f"Error saving chat history to S3 - Bucket: {self.bucket_name}, Error: {str(e)}")
             raise 
+
+    def save_user_profile(self, user_id, profile_data):
+        """
+        Save a user's profile information to S3
+        Args:
+            user_id: Telegram user ID
+            profile_data: Dictionary containing user profile info
+        """
+        try:
+            # Use a standard path for user profiles
+            s3_key = f"{user_id}/profile.json"
+            
+            logging.info(f"Saving user profile to S3 - Bucket: {self.bucket_name}, Key: {s3_key}")
+            
+            # Upload the profile data
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=json.dumps(profile_data, indent=2),
+                ContentType='application/json'
+            )
+            
+            logging.info(f"Successfully saved user profile to S3: s3://{self.bucket_name}/{s3_key}")
+            return f"s3://{self.bucket_name}/{s3_key}"
+            
+        except Exception as e:
+            logging.error(f"Error saving user profile to S3 - Bucket: {self.bucket_name}, Error: {str(e)}")
+            raise
+
+    def get_user_profile(self, user_id):
+        """
+        Retrieve a user's profile information from S3
+        Args:
+            user_id: Telegram user ID
+        Returns:
+            Dictionary containing user profile or None if not found
+        """
+        try:
+            s3_key = f"{user_id}/profile.json"
+            
+            # Check if profile exists
+            try:
+                response = self.s3_client.get_object(
+                    Bucket=self.bucket_name,
+                    Key=s3_key
+                )
+                profile_data = json.loads(response['Body'].read().decode('utf-8'))
+                return profile_data
+            except self.s3_client.exceptions.NoSuchKey:
+                return None
+            
+        except Exception as e:
+            logging.error(f"Error retrieving user profile from S3: {str(e)}")
+            return None 
