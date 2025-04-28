@@ -47,7 +47,7 @@ tenacity==8.3.0
 tiktoken==0.7.0
 tqdm==4.67.1
 typing_extensions==4.12.2
-urllib3==2.3.0
+urllib3>=1.25.4,<1.27
 whois==0.9.27
 wolframalpha==5.1.3
 xmltodict==0.14.2

@@ -8,7 +8,15 @@ import datetime
 import json
 
 from uuid import uuid4
-from telegram import BotCommandScopeAllGroupChats, Update, constants, Location, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram import (
+    BotCommandScopeAllGroupChats,
+    Update,
+    constants,
+    Location,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove,
+)
 from telegram import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
@@ -71,7 +79,7 @@ class ChatGPTTelegramBot:
         self.config = config
         self.openai = openai
         # Initialize S3 helper
-        self.s3_helper = S3Helper(os.getenv('S3_BUCKET_NAME'))
+        self.s3_helper = S3Helper(os.getenv("S3_BUCKET_NAME"))
         bot_language = self.config["bot_language"]
         self.commands = [
             BotCommand(
@@ -114,7 +122,7 @@ class ChatGPTTelegramBot:
         # Add user profile tracking
         self.user_profiles = {}  # In-memory cache of user profiles
         self.profile_collection_state = {}  # Track the state of profile collection
-        
+
         # Add profile command
         self.commands.append(
             BotCommand(
@@ -145,6 +153,7 @@ class ChatGPTTelegramBot:
 
         # After sending help, check if user has a profile
         user_id = update.message.from_user.id
+        logging.info(f"Checking profile for user {user_id} after help command")
         await self.check_user_profile(update, user_id)
 
     async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -549,24 +558,25 @@ class ChatGPTTelegramBot:
 
                 # Get message data with timestamps
                 message_data = self.openai.get_last_message_data(chat_id)
-                
+
                 # Add user info
-                message_data.update({
-                    'user_id': update.message.from_user.id,
-                    'username': update.message.from_user.username,
-                    'chat_id': chat_id
-                })
-                
+                message_data.update(
+                    {
+                        "user_id": update.message.from_user.id,
+                        "username": update.message.from_user.username,
+                        "chat_id": chat_id,
+                    }
+                )
+
                 # Save to S3
                 try:
                     self.s3_helper.save_chat_history(
-                        user_id=update.message.from_user.id,
-                        message_data=message_data
+                        user_id=update.message.from_user.id, message_data=message_data
                     )
                 except Exception as e:
                     logging.error(f"Failed to save chat history to S3: {str(e)}")
                     # Don't raise the error to avoid interrupting chat flow
-                
+
                 # Generate speech from GPT's response
                 speech_file, text_length = await self.openai.generate_speech(
                     text=response
@@ -653,98 +663,114 @@ class ChatGPTTelegramBot:
                 # Get the file from Telegram
                 media_file = await context.bot.get_file(image.file_id)
                 image_bytes = await media_file.download_as_bytearray()
-                
+
                 # Extract metadata
                 metadata = {
-                    'file_id': image.file_id,
-                    'file_unique_id': image.file_unique_id,
-                    'width': image.width,
-                    'height': image.height,
-                    'file_size': image.file_size,
-                    'date': datetime.datetime.now().isoformat(),
-                    'user_id': update.message.from_user.id,
-                    'user_name': update.message.from_user.name
+                    "file_id": image.file_id,
+                    "file_unique_id": image.file_unique_id,
+                    "width": image.width,
+                    "height": image.height,
+                    "file_size": image.file_size,
+                    "date": datetime.datetime.now().isoformat(),
+                    "user_id": update.message.from_user.id,
+                    "user_name": update.message.from_user.name,
                 }
 
                 # Get location from message if available
                 if update.message.location:
-                    metadata.update({
-                        'message_latitude': update.message.location.latitude,
-                        'message_longitude': update.message.location.longitude
-                    })
-                
+                    metadata.update(
+                        {
+                            "message_latitude": update.message.location.latitude,
+                            "message_longitude": update.message.location.longitude,
+                        }
+                    )
+
                 # Try to extract EXIF data including GPS
                 try:
                     image_io = BytesIO(image_bytes)
                     img = Image.open(image_io)
-                    
-                    if hasattr(img, '_getexif'):
+
+                    if hasattr(img, "_getexif"):
                         exif = img._getexif()
                         if exif is not None:
                             labeled_exif = {}
                             for key, val in exif.items():
                                 if key in ExifTags.TAGS:
                                     labeled_exif[ExifTags.TAGS[key]] = str(val)
-                            
+
                             # Extract GPS data if available
-                            if 'GPSInfo' in labeled_exif:
+                            if "GPSInfo" in labeled_exif:
                                 gps_info = {}
                                 for key, val in exif[34853].items():
                                     if key in ExifTags.GPSTAGS:
                                         gps_info[ExifTags.GPSTAGS[key]] = str(val)
-                                metadata['gps_exif'] = gps_info
-                            
-                            metadata['exif'] = labeled_exif
-                    
+                                metadata["gps_exif"] = gps_info
+
+                            metadata["exif"] = labeled_exif
+
                     # Try piexif as alternative method
                     try:
-                        exif_dict = piexif.load(img.info.get('exif', b''))
-                        if '0th' in exif_dict:
-                            metadata['piexif_data'] = {
+                        exif_dict = piexif.load(img.info.get("exif", b""))
+                        if "0th" in exif_dict:
+                            metadata["piexif_data"] = {
                                 ExifTags.TAGS.get(tag_id, str(tag_id)): str(value)
-                                for tag_id, value in exif_dict['0th'].items()
+                                for tag_id, value in exif_dict["0th"].items()
                             }
-                        if 'GPS' in exif_dict:
-                            metadata['piexif_gps'] = {
+                        if "GPS" in exif_dict:
+                            metadata["piexif_gps"] = {
                                 ExifTags.GPSTAGS.get(tag_id, str(tag_id)): str(value)
-                                for tag_id, value in exif_dict['GPS'].items()
+                                for tag_id, value in exif_dict["GPS"].items()
                             }
                     except Exception as e:
                         logging.debug(f"Piexif extraction failed: {str(e)}")
-                
+
                 except Exception as e:
                     logging.debug(f"EXIF extraction failed: {str(e)}")
-                
+
                 # Add any available mime type
-                if hasattr(image, 'mime_type'):
-                    metadata['mime_type'] = image.mime_type
-                
+                if hasattr(image, "mime_type"):
+                    metadata["mime_type"] = image.mime_type
+
                 # Upload to S3 with metadata
                 try:
                     original_filename = None
-                    if hasattr(image, 'file_name'):
+                    if hasattr(image, "file_name"):
                         original_filename = image.file_name
-                        metadata['original_filename'] = original_filename
-                    elif hasattr(image, 'file_id'):
+                        metadata["original_filename"] = original_filename
+                    elif hasattr(image, "file_id"):
                         original_filename = f"{image.file_id}.jpeg"
-                    
+
                     self.s3_helper.upload_image(
-                        image_bytes, 
-                        chat_id, 
-                        original_filename,
-                        metadata=metadata
+                        image_bytes, chat_id, original_filename, metadata=metadata
                     )
-                    logging.info(f"Successfully uploaded image with metadata to S3 for chat_id {chat_id}")
+                    logging.info(
+                        f"Successfully uploaded image with metadata to S3 for chat_id {chat_id}"
+                    )
                 except Exception as e:
-                    logging.error(f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}", exc_info=True)
-                
+                    logging.error(
+                        f"Failed to upload image to S3 for chat_id {chat_id}: {str(e)}",
+                        exc_info=True,
+                    )
+
                 # Request location from user
                 await update.effective_message.reply_text(
                     message_thread_id=get_thread_id(update),
-                    text=localized_text("request_location", self.config["bot_language"]),
-                    reply_markup=ReplyKeyboardMarkup([
-                        [KeyboardButton(localized_text("share_location", self.config["bot_language"]), request_location=True)]
-                    ], one_time_keyboard=True)
+                    text=localized_text(
+                        "request_location", self.config["bot_language"]
+                    ),
+                    reply_markup=ReplyKeyboardMarkup(
+                        [
+                            [
+                                KeyboardButton(
+                                    localized_text(
+                                        "share_location", self.config["bot_language"]
+                                    ),
+                                    request_location=True,
+                                )
+                            ]
+                        ],
+                        one_time_keyboard=True,
+                    ),
                 )
 
                 # Continue with vision processing...
@@ -763,7 +789,9 @@ class ChatGPTTelegramBot:
                     logging.exception(e)
                     await update.effective_message.reply_text(
                         message_thread_id=get_thread_id(update),
-                        reply_to_message_id=get_reply_to_message_id(self.config, update),
+                        reply_to_message_id=get_reply_to_message_id(
+                            self.config, update
+                        ),
                         text=localized_text("media_type_fail", bot_language),
                     )
                     return
@@ -771,7 +799,9 @@ class ChatGPTTelegramBot:
                 # Continue with existing vision processing code...
                 user_id = update.message.from_user.id
                 if user_id not in self.usage:
-                    self.usage[user_id] = UsageTracker(user_id, update.message.from_user.name)
+                    self.usage[user_id] = UsageTracker(
+                        user_id, update.message.from_user.name
+                    )
 
                 if self.config["stream"]:
                     stream_response = self.openai.interpret_image_stream(
@@ -786,7 +816,9 @@ class ChatGPTTelegramBot:
 
                     async for content, tokens in stream_response:
                         if is_direct_result(content):
-                            return await handle_direct_result(self.config, update, content)
+                            return await handle_direct_result(
+                                self.config, update, content
+                            )
 
                         if len(content.strip()) == 0:
                             continue
@@ -827,17 +859,22 @@ class ChatGPTTelegramBot:
                                         chat_id=sent_message.chat_id,
                                         message_id=sent_message.message_id,
                                     )
-                                sent_message = await update.effective_message.reply_text(
-                                    message_thread_id=get_thread_id(update),
-                                    reply_to_message_id=get_reply_to_message_id(
-                                        self.config, update
-                                    ),
-                                    text=content,
+                                sent_message = (
+                                    await update.effective_message.reply_text(
+                                        message_thread_id=get_thread_id(update),
+                                        reply_to_message_id=get_reply_to_message_id(
+                                            self.config, update
+                                        ),
+                                        text=content,
+                                    )
                                 )
                             except:
                                 continue
 
-                        elif abs(len(content) - len(prev)) > cutoff or tokens != "not_finished":
+                        elif (
+                            abs(len(content) - len(prev)) > cutoff
+                            or tokens != "not_finished"
+                        ):
                             prev = content
                             try:
                                 use_markdown = tokens != "not_finished"
@@ -868,40 +905,57 @@ class ChatGPTTelegramBot:
                         i += 1
                         if tokens != "not_finished":
                             total_tokens = int(tokens)
-                            
+
                             # First generate and send audio once streaming is complete
-                            await self.send_audio_response(update, accumulated_response, user_id)
-                            
+                            await self.send_audio_response(
+                                update, accumulated_response, user_id
+                            )
+
                             # THEN save chat history AFTER sending the response
                             try:
                                 message_data = {
-                                    'user_id': update.message.from_user.id,
-                                    'username': update.message.from_user.username,
-                                    'chat_id': chat_id,
-                                    'query_time': datetime.datetime.now().isoformat(),
-                                    'query': prompt if prompt else self.config.get("vision_prompt", "What is in this image?"),
-                                    'response_time': datetime.datetime.now().isoformat(),
-                                    'response': accumulated_response,
-                                    'total_tokens': str(total_tokens),
-                                    'streaming': True,
-                                    'image_response': True
+                                    "user_id": update.message.from_user.id,
+                                    "username": update.message.from_user.username,
+                                    "chat_id": chat_id,
+                                    "query_time": datetime.datetime.now().isoformat(),
+                                    "query": (
+                                        prompt
+                                        if prompt
+                                        else self.config.get(
+                                            "vision_prompt", "What is in this image?"
+                                        )
+                                    ),
+                                    "response_time": datetime.datetime.now().isoformat(),
+                                    "response": accumulated_response,
+                                    "total_tokens": str(total_tokens),
+                                    "streaming": True,
+                                    "image_response": True,
                                 }
-                                
-                                logging.debug(f"Saving streaming chat history to S3 after sending response to user {update.message.from_user.id}")
+
+                                logging.debug(
+                                    f"Saving streaming chat history to S3 after sending response to user {update.message.from_user.id}"
+                                )
                                 result = self.s3_helper.save_chat_history(
                                     user_id=update.message.from_user.id,
-                                    message_data=message_data
+                                    message_data=message_data,
                                 )
-                                logging.info(f"Successfully saved streaming image conversation to S3: {result}")
+                                logging.info(
+                                    f"Successfully saved streaming image conversation to S3: {result}"
+                                )
                             except Exception as e:
-                                logging.error(f"Failed to save streaming image conversation to S3: {str(e)}", exc_info=True)
+                                logging.error(
+                                    f"Failed to save streaming image conversation to S3: {str(e)}",
+                                    exc_info=True,
+                                )
 
                 else:
                     try:
-                        interpretation, total_tokens = await self.openai.interpret_image(
-                            chat_id, temp_file_png, prompt=prompt
+                        interpretation, total_tokens = (
+                            await self.openai.interpret_image(
+                                chat_id, temp_file_png, prompt=prompt
+                            )
                         )
-                        
+
                         # First generate and send the audio response
                         await self.send_audio_response(update, interpretation, user_id)
 
@@ -938,25 +992,38 @@ class ChatGPTTelegramBot:
                         # NOW save the chat history AFTER sending responses
                         try:
                             message_data = {
-                                'user_id': update.message.from_user.id,
-                                'username': update.message.from_user.username,
-                                'chat_id': chat_id,
-                                'query_time': datetime.datetime.now().isoformat(),
-                                'query': prompt if prompt else self.config.get("vision_prompt", "What is in this image?"),
-                                'response_time': datetime.datetime.now().isoformat(),
-                                'response': interpretation,
-                                'total_tokens': str(total_tokens),
-                                'image_response': True
+                                "user_id": update.message.from_user.id,
+                                "username": update.message.from_user.username,
+                                "chat_id": chat_id,
+                                "query_time": datetime.datetime.now().isoformat(),
+                                "query": (
+                                    prompt
+                                    if prompt
+                                    else self.config.get(
+                                        "vision_prompt", "What is in this image?"
+                                    )
+                                ),
+                                "response_time": datetime.datetime.now().isoformat(),
+                                "response": interpretation,
+                                "total_tokens": str(total_tokens),
+                                "image_response": True,
                             }
-                            
-                            logging.debug(f"Saving chat history to S3 after sending response to user {update.message.from_user.id}")
+
+                            logging.debug(
+                                f"Saving chat history to S3 after sending response to user {update.message.from_user.id}"
+                            )
                             result = self.s3_helper.save_chat_history(
                                 user_id=update.message.from_user.id,
-                                message_data=message_data
+                                message_data=message_data,
                             )
-                            logging.info(f"Successfully saved image conversation to S3: {result}")
+                            logging.info(
+                                f"Successfully saved image conversation to S3: {result}"
+                            )
                         except Exception as e:
-                            logging.error(f"Failed to save image conversation to S3: {str(e)}", exc_info=True)
+                            logging.error(
+                                f"Failed to save image conversation to S3: {str(e)}",
+                                exc_info=True,
+                            )
 
                     except Exception as e:
                         logging.exception(e)
@@ -973,7 +1040,9 @@ class ChatGPTTelegramBot:
 
                 allowed_user_ids = self.config["allowed_user_ids"].split(",")
                 if str(user_id) not in allowed_user_ids and "guests" in self.usage:
-                    self.usage["guests"].add_vision_tokens(total_tokens, vision_token_price)
+                    self.usage["guests"].add_vision_tokens(
+                        total_tokens, vision_token_price
+                    )
 
             except Exception as e:
                 logging.exception(e)
@@ -987,7 +1056,9 @@ class ChatGPTTelegramBot:
                     parse_mode=constants.ParseMode.MARKDOWN,
                 )
 
-        await wrap_with_indicator(update, context, _execute, constants.ChatAction.TYPING)
+        await wrap_with_indicator(
+            update, context, _execute, constants.ChatAction.TYPING
+        )
 
     async def prompt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
@@ -1001,64 +1072,104 @@ class ChatGPTTelegramBot:
 
         user_id = update.message.from_user.id
         chat_id = update.effective_chat.id
-        
+
+        # Always check profile on every message
+        logging.info(f"Checking profile for user {user_id}")
+        # Only start onboarding if user is not already in the process
+        if user_id not in self.profile_collection_state:
+            await self.check_user_profile(update, user_id)
+            return  # Return here to wait for user's response
+
         # Check if we're in the middle of profile collection
         if user_id in self.profile_collection_state:
             state = self.profile_collection_state[user_id]
-            
-            if state == "waiting_for_name":
-                # Save the name
-                name = update.message.text
+            logging.info(f"User {user_id} is in profile collection state: {state}")
+
+            if state == "waiting_for_first_name":
+                # Save the first name
+                first_name = update.message.text
                 if not self.user_profiles.get(user_id):
                     self.user_profiles[user_id] = {}
-                
-                self.user_profiles[user_id]['name'] = name
-                
-                # Now ask for cooperatives
+
+                self.user_profiles[user_id]["first_name"] = first_name
+                logging.info(f"Saved first name: {first_name}")
+
+                # Now ask for last name
                 await update.effective_message.reply_text(
-                    f"Merci {name}! Avec quelle(s) coopérative(s) travaillez-vous? "
-                    f"(Séparez les noms par des virgules si plusieurs)"
+                    "Écrivez simplement votre nom de famille:"
                 )
-                self.profile_collection_state[user_id] = "waiting_for_coops"
+                self.profile_collection_state[user_id] = "waiting_for_last_name"
                 return
-                
+
+            elif state == "waiting_for_last_name":
+                # Save the last name
+                last_name = update.message.text
+                self.user_profiles[user_id]["last_name"] = last_name
+                logging.info(f"Saved last name: {last_name}")
+
+                # Now ask for user type
+                keyboard = [
+                    [InlineKeyboardButton("Admin", callback_data="type_Admin")],
+                    [
+                        InlineKeyboardButton(
+                            "Agronomist", callback_data="type_Agronomist"
+                        )
+                    ],
+                    [InlineKeyboardButton("User", callback_data="type_User")],
+                    [InlineKeyboardButton("Coach", callback_data="type_Coach")],
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                await update.effective_message.reply_text(
+                    "Quel est votre rôle?", reply_markup=reply_markup
+                )
+                self.profile_collection_state[user_id] = "waiting_for_user_type"
+                return
+
+            elif state == "waiting_for_user_type":
+                # User type is handled by callback query
+                logging.info("Waiting for user type selection")
+                return
+
             elif state == "waiting_for_coops":
-                # Save the cooperatives
-                coops = [coop.strip() for coop in update.message.text.split(',')]
-                self.user_profiles[user_id]['cooperatives'] = coops
-                
-                # Save to S3
-                try:
-                    profile_data = self.user_profiles[user_id]
-                    profile_data['updated_at'] = datetime.datetime.now().isoformat()
-                    
-                    self.s3_helper.save_user_profile(user_id, profile_data)
-                    
-                    # Clear state
-                    del self.profile_collection_state[user_id]
-                    
+                # Cooperative selection is handled by callback query
+                logging.info("Waiting for cooperative selection")
+                return
+
+            elif state == "waiting_for_name_verification":
+                # Verify the name
+                full_name = f"{self.user_profiles[user_id]['first_name']} {self.user_profiles[user_id]['last_name']}"
+                if update.message.text.lower() == full_name.lower():
+                    # Name verified, now ask for cooperative
+                    cooperative_options = [
+                        "No-Cooperative",
+                        "ECAM",
+                        "Groupement Agricole de Kongouanou",
+                        "Groupement de Tenikro",
+                        "RISO",
+                    ]
+                    keyboard = [
+                        [InlineKeyboardButton(option, callback_data=f"coop_{option}")]
+                        for option in cooperative_options
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+
                     await update.effective_message.reply_text(
-                        f"Merci! Votre profil a été enregistré.\n\n"
-                        f"Nom: {profile_data['name']}\n"
-                        f"Coopérative(s): {', '.join(profile_data['cooperatives'])}\n\n"
-                        f"Vous pouvez maintenant me poser des questions sur les maladies du cacao ou "
-                        f"m'envoyer des photos pour diagnostic."
+                        "Merci! Veuillez sélectionner votre coopérative:",
+                        reply_markup=reply_markup,
                     )
-                    return
-                except Exception as e:
-                    logging.error(f"Error saving user profile: {str(e)}")
-                    # Clear state and continue as normal
-                    del self.profile_collection_state[user_id]
+                    self.profile_collection_state[user_id] = "waiting_for_coops"
+                else:
                     await update.effective_message.reply_text(
-                        "Désolé, il y a eu un problème lors de l'enregistrement de votre profil. "
-                        "Vous pouvez réessayer plus tard avec la commande /profile."
+                        "Les noms ne correspondent pas. Veuillez réessayer:"
                     )
-        
+                return
+
         # Normal message handling continues here
         logging.info(
             f"New message received from user {update.message.from_user.name} (id: {update.message.from_user.id})"
         )
-        
+
         prompt = message_text(update.message)
         self.last_message[chat_id] = prompt
 
@@ -1103,24 +1214,28 @@ class ChatGPTTelegramBot:
                         if tokens != "not_finished":
                             total_tokens = int(tokens)
                             accumulated_response = content
-                            
+
                             # Save chat history after streaming is complete
                             message_data = self.openai.get_last_message_data(chat_id)
-                            message_data.update({
-                                'user_id': update.message.from_user.id,
-                                'username': update.message.from_user.username,
-                                'chat_id': chat_id,
-                                'streaming': True
-                            })
-                            
+                            message_data.update(
+                                {
+                                    "user_id": update.message.from_user.id,
+                                    "username": update.message.from_user.username,
+                                    "chat_id": chat_id,
+                                    "streaming": True,
+                                }
+                            )
+
                             try:
                                 self.s3_helper.save_chat_history(
                                     user_id=update.message.from_user.id,
-                                    message_data=message_data
+                                    message_data=message_data,
                                 )
                             except Exception as e:
-                                logging.error(f"Failed to save chat history to S3: {str(e)}")
-                            
+                                logging.error(
+                                    f"Failed to save chat history to S3: {str(e)}"
+                                )
+
                             # Generate and send audio once streaming is complete
                             await self.send_audio_response(update, content, user_id)
                 else:
@@ -1134,18 +1249,20 @@ class ChatGPTTelegramBot:
 
                     # Get message data with timestamps
                     message_data = self.openai.get_last_message_data(chat_id)
-                    message_data.update({
-                        'user_id': update.message.from_user.id,
-                        'username': update.message.from_user.username,
-                        'chat_id': chat_id,
-                        'streaming': False
-                    })
-                    
+                    message_data.update(
+                        {
+                            "user_id": update.message.from_user.id,
+                            "username": update.message.from_user.username,
+                            "chat_id": chat_id,
+                            "streaming": False,
+                        }
+                    )
+
                     # Save to S3
                     try:
                         self.s3_helper.save_chat_history(
                             user_id=update.message.from_user.id,
-                            message_data=message_data
+                            message_data=message_data,
                         )
                     except Exception as e:
                         logging.error(f"Failed to save chat history to S3: {str(e)}")
@@ -1542,6 +1659,7 @@ class ChatGPTTelegramBot:
         application.add_handler(CommandHandler("stats", self.stats))
         application.add_handler(CommandHandler("resend", self.resend))
         application.add_handler(CommandHandler("profile", self.profile))
+        application.add_handler(CallbackQueryHandler(self.handle_profile_callback))
         application.add_handler(
             CommandHandler(
                 "chat",
@@ -1629,7 +1747,7 @@ class ChatGPTTelegramBot:
             user = update.message.from_user
             location = update.message.location
             chat_id = update.effective_chat.id
-            
+
             logging.info(
                 f"Received location from {user.name} (id: {user.id}): "
                 f"lat={location.latitude}, lon={location.longitude}"
@@ -1645,12 +1763,14 @@ class ChatGPTTelegramBot:
                 "live_period": getattr(location, "live_period", None),
                 "horizontal_accuracy": getattr(location, "horizontal_accuracy", None),
                 "heading": getattr(location, "heading", None),
-                "proximity_alert_radius": getattr(location, "proximity_alert_radius", None),
-                "timestamp": datetime.datetime.now().isoformat()
+                "proximity_alert_radius": getattr(
+                    location, "proximity_alert_radius", None
+                ),
+                "timestamp": datetime.datetime.now().isoformat(),
             }
 
             # Generate filename with timestamp
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             s3_key = f"{user.id}/locations/{timestamp}.json"
 
             # Upload to S3
@@ -1658,24 +1778,25 @@ class ChatGPTTelegramBot:
                 Bucket=self.s3_helper.bucket_name,
                 Key=s3_key,
                 Body=json.dumps(location_data, indent=2),
-                ContentType='application/json'
+                ContentType="application/json",
             )
 
             bot_language = self.config["bot_language"]
             await update.message.reply_text(
                 message_thread_id=get_thread_id(update),
                 text=localized_text("location_received", bot_language),
-                reply_markup=ReplyKeyboardRemove()
+                reply_markup=ReplyKeyboardRemove(),
             )
 
             # If this is a live location, store it for updates
             if location.live_period:
-                if not hasattr(self, 'live_locations'):
+                if not hasattr(self, "live_locations"):
                     self.live_locations = {}
                 self.live_locations[chat_id] = {
                     "message_id": update.message.message_id,
-                    "expires_at": datetime.datetime.now().timestamp() + location.live_period,
-                    "s3_key": s3_key
+                    "expires_at": datetime.datetime.now().timestamp()
+                    + location.live_period,
+                    "s3_key": s3_key,
                 }
 
         except Exception as e:
@@ -1683,7 +1804,7 @@ class ChatGPTTelegramBot:
             await update.message.reply_text(
                 message_thread_id=get_thread_id(update),
                 text=f"⚠️ Error saving location: {str(e)}",
-                reply_markup=ReplyKeyboardRemove()
+                reply_markup=ReplyKeyboardRemove(),
             )
 
     async def check_user_profile(self, update, user_id):
@@ -1691,24 +1812,33 @@ class ChatGPTTelegramBot:
         try:
             # Try to get profile from memory cache
             profile = self.user_profiles.get(user_id)
-            
+            logging.info(f"Profile from memory cache: {profile}")
+
             # If not in memory, try to get from S3
             if not profile:
                 profile = self.s3_helper.get_user_profile(user_id)
+                logging.info(f"Profile from S3: {profile}")
                 if profile:
                     # Cache it for future use
                     self.user_profiles[user_id] = profile
-            
-            # If still no profile, start profile collection
-            if not profile:
-                bot_language = self.config["bot_language"]
+
+            # Log the onboarding_all_the_time setting
+            logging.info(
+                f"onboarding_all_the_time setting: {self.config.get('onboarding_all_the_time', False)}"
+            )
+
+            # If no profile or onboarding_all_the_time is true, start profile collection
+            if not profile or self.config.get("onboarding_all_the_time", False):
+                logging.info(f"Starting profile collection for user {user_id}")
                 await update.effective_message.reply_text(
                     "Bienvenue sur Gervais, votre assistant en diagnostic du cacao! 🌱\n\n"
                     "Pour mieux vous servir, pourriez-vous nous donner quelques informations?\n\n"
-                    "Comment vous appelez-vous?"
+                    "Écrivez simplement votre prénom:"
                 )
-                self.profile_collection_state[user_id] = "waiting_for_name"
-            
+                self.profile_collection_state[user_id] = "waiting_for_first_name"
+            else:
+                logging.info(f"Using existing profile for user {user_id}")
+
             return profile
         except Exception as e:
             logging.error(f"Error checking user profile: {str(e)}")
@@ -1717,9 +1847,56 @@ class ChatGPTTelegramBot:
     async def profile(self, update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle the /profile command to update user profile"""
         user_id = update.message.from_user.id
-        
+
         await update.effective_message.reply_text(
-            "Mettons à jour votre profil.\n\n"
-            "Comment vous appelez-vous?"
+            "Mettons à jour votre profil.\n\n" "Écrivez simplement votre prénom:"
         )
-        self.profile_collection_state[user_id] = "waiting_for_name"
+        self.profile_collection_state[user_id] = "waiting_for_first_name"
+
+    async def handle_profile_callback(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        """Handle callback queries for profile updates"""
+        query = update.callback_query
+        user_id = query.from_user.id
+
+        if query.data.startswith("type_"):
+            user_type = query.data.replace("type_", "")
+            self.user_profiles[user_id]["user_type"] = user_type
+
+            # Ask for name verification
+            full_name = f"{self.user_profiles[user_id]['first_name']} {self.user_profiles[user_id]['last_name']}"
+            await query.edit_message_text(
+                text=f"Merci! Pour vérifier, veuillez écrire votre nom complet: {full_name}"
+            )
+            self.profile_collection_state[user_id] = "waiting_for_name_verification"
+
+        elif query.data.startswith("coop_"):
+            selected_coop = query.data.replace("coop_", "")
+            self.user_profiles[user_id]["cooperatives"] = [selected_coop]
+
+            # Save to S3
+            try:
+                profile_data = self.user_profiles[user_id]
+                profile_data["updated_at"] = datetime.datetime.now().isoformat()
+                self.s3_helper.save_user_profile(user_id, profile_data)
+
+                # Clear state
+                del self.profile_collection_state[user_id]
+
+                await query.edit_message_text(
+                    text=f"Merci! Votre profil a été enregistré.\n\n"
+                    f"Nom: {profile_data['first_name']} {profile_data['last_name']}\n"
+                    f"Rôle: {profile_data['user_type']}\n"
+                    f"Coopérative: {selected_coop}\n\n"
+                    f"Vous pouvez maintenant me poser des questions sur les maladies du cacao ou "
+                    f"m'envoyer des photos pour diagnostic."
+                )
+            except Exception as e:
+                logging.error(f"Error saving user profile: {str(e)}")
+                await query.edit_message_text(
+                    text="Désolé, il y a eu un problème lors de l'enregistrement de votre profil. "
+                    "Vous pouvez réessayer plus tard avec la commande /profile."
+                )
+
+        await query.answer()

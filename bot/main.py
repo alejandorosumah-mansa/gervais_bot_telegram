@@ -147,6 +147,10 @@ def main():
         ],
         "transcription_price": float(os.environ.get("TRANSCRIPTION_PRICE", 0.006)),
         "bot_language": os.environ.get("BOT_LANGUAGE", "en"),
+        "onboarding_all_the_time": os.environ.get(
+            "ONBOARDING_ALL_THE_TIME", "false"
+        ).lower()
+        == "true",
     }
 
     plugin_config = {"plugins": os.environ.get("PLUGINS", "").split(",")}
