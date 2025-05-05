@@ -922,7 +922,7 @@ class ChatGPTTelegramBot:
                                         prompt
                                         if prompt
                                         else self.config.get(
-                                            "vision_prompt", "What is in this image?"
+                                            "vision_prompt"
                                         )
                                     ),
                                     "response_time": datetime.datetime.now().isoformat(),
@@ -1000,7 +1000,7 @@ class ChatGPTTelegramBot:
                                     prompt
                                     if prompt
                                     else self.config.get(
-                                        "vision_prompt", "What is in this image?"
+                                        "vision_prompt"
                                     )
                                 ),
                                 "response_time": datetime.datetime.now().isoformat(),
@@ -1078,7 +1078,9 @@ class ChatGPTTelegramBot:
         # Only start onboarding if user is not already in the process
         if user_id not in self.profile_collection_state:
             await self.check_user_profile(update, user_id)
-            return  # Return here to wait for user's response
+            # Only return if onboarding actually started (user is now in profile_collection_state)
+            if user_id in self.profile_collection_state:
+                return  # Return here to wait for user's response
 
         # Check if we're in the middle of profile collection
         if user_id in self.profile_collection_state:

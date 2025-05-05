@@ -13,15 +13,13 @@ if not os.path.exists(log_dir):
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         RotatingFileHandler(
-            os.path.join(log_dir, "bot.log"),
-            maxBytes=10000000,  # 10MB
-            backupCount=5
+            os.path.join(log_dir, "bot.log"), maxBytes=10000000, backupCount=5  # 10MB
         ),
-        logging.StreamHandler()
-    ]
+        logging.StreamHandler(),
+    ],
 )
 
 from main import main
